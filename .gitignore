@@ -1,3 +1,21 @@
-/venv
-venv
-env
+# virtualenvs
+/venv/
+/.venv/
+env/
+
+# local config and data
+.env
+db.sqlite3
+db.sqlite3-journal
+/staticfiles/
+
+# python / tooling caches
+__pycache__/
+*.py[cod]
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/

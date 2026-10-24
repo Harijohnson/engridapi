@@ -1,0 +1,1234 @@
+openapi: 3.0.3
+info:
+  title: EnGrid Wind Forecast Monitor API
+  version: 1.0.0
+  description: Reconstructs the Elexon WINDFOR wind forecast available at a purchasing-decision
+    cutoff (no look-ahead) and measures its accuracy against FUELHH actual wind generation.
+    All datetimes are UTC (ISO-8601 with Z).
+paths:
+  /api/v1/accuracy/breakdown:
+    get:
+      operationId: accuracyBreakdown
+      summary: Accuracy metrics per UK day or hour of day
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: First UK delivery date (inclusive). Defaults to window start.
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Last UK delivery date (inclusive). Defaults to window end.
+      - in: query
+        name: gate_days_before
+        schema:
+          type: integer
+          minimum: 1
+        description: 'daily_gate only: days before the delivery date.'
+      - in: query
+        name: gate_time
+        schema:
+          type: string
+          format: time
+        description: 'daily_gate only: UK wall-clock time (HH:MM, Europe/London).'
+      - in: query
+        name: group_by
+        schema:
+          enum:
+          - day
+          - hour_of_day
+          type: string
+          minLength: 1
+        description: |-
+          UK-local day or hour of day.
+
+          * `day` - DAY
+          * `hour_of_day` - HOUR_OF_DAY
+        required: true
+      - in: query
+        name: lead_time_h
+        schema:
+          type: integer
+          minimum: 0
+        description: 'lead_time only: required lead time in hours.'
+      - in: query
+        name: policy
+        schema:
+          enum:
+          - daily_gate
+          - lead_time
+          type: string
+          minLength: 1
+        description: |-
+          Decision cutoff policy. Defaults to the server default (see /api/v1/meta).
+
+          * `daily_gate` - DAILY_GATE
+          * `lead_time` - LEAD_TIME
+      tags:
+      - analytics
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BreakdownResponse'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invalid query parameters (RFC 9457).
+  /api/v1/accuracy/by-lead-time:
+    get:
+      operationId: accuracyByLeadTime
+      summary: Accuracy for each required lead time H (the improvement curve)
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: First UK delivery date (inclusive). Defaults to window start.
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Last UK delivery date (inclusive). Defaults to window end.
+      - in: query
+        name: max_h
+        schema:
+          type: integer
+          minimum: 0
+      - in: query
+        name: min_h
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      tags:
+      - analytics
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeadTimeCurveResponse'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invalid query parameters (RFC 9457).
+  /api/v1/forecasts/history:
+    get:
+      operationId: forecastHistory
+      summary: Every forecast version for one delivery hour, labelled against the
+        cutoff
+      parameters:
+      - in: query
+        name: gate_days_before
+        schema:
+          type: integer
+          minimum: 1
+        description: 'daily_gate only: days before the delivery date.'
+      - in: query
+        name: gate_time
+        schema:
+          type: string
+          format: time
+        description: 'daily_gate only: UK wall-clock time (HH:MM, Europe/London).'
+      - in: query
+        name: lead_time_h
+        schema:
+          type: integer
+          minimum: 0
+        description: 'lead_time only: required lead time in hours.'
+      - in: query
+        name: policy
+        schema:
+          enum:
+          - daily_gate
+          - lead_time
+          type: string
+          minLength: 1
+        description: |-
+          Decision cutoff policy. Defaults to the server default (see /api/v1/meta).
+
+          * `daily_gate` - DAILY_GATE
+          * `lead_time` - LEAD_TIME
+      - in: query
+        name: start_time
+        schema:
+          type: string
+          format: date-time
+        description: Delivery hour start, ISO-8601 with a time zone (e.g. 2026-01-15T18:00:00Z).
+        required: true
+      tags:
+      - analytics
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryResponse'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invalid query parameters (RFC 9457).
+  /api/v1/intervals:
+    get:
+      operationId: intervals
+      summary: 'Interval table: one row per delivery hour, sortable and paginated'
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: First UK delivery date (inclusive). Defaults to window start.
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Last UK delivery date (inclusive). Defaults to window end.
+      - in: query
+        name: gate_days_before
+        schema:
+          type: integer
+          minimum: 1
+        description: 'daily_gate only: days before the delivery date.'
+      - in: query
+        name: gate_time
+        schema:
+          type: string
+          format: time
+        description: 'daily_gate only: UK wall-clock time (HH:MM, Europe/London).'
+      - in: query
+        name: lead_time_h
+        schema:
+          type: integer
+          minimum: 0
+        description: 'lead_time only: required lead time in hours.'
+      - in: query
+        name: ordering
+        schema:
+          enum:
+          - start_time
+          - -start_time
+          - forecast_mw
+          - -forecast_mw
+          - actual_mw
+          - -actual_mw
+          - error_mw
+          - -error_mw
+          - abs_error_mw
+          - -abs_error_mw
+          - publish_time
+          - -publish_time
+          - lead_time_h
+          - -lead_time_h
+          type: string
+          default: start_time
+          minLength: 1
+        description: |-
+          Sort field; prefix with '-' for descending. Missing values sort last.
+
+          * `start_time` - start_time
+          * `-start_time` - -start_time
+          * `forecast_mw` - forecast_mw
+          * `-forecast_mw` - -forecast_mw
+          * `actual_mw` - actual_mw
+          * `-actual_mw` - -actual_mw
+          * `error_mw` - error_mw
+          * `-error_mw` - -error_mw
+          * `abs_error_mw` - abs_error_mw
+          * `-abs_error_mw` - -abs_error_mw
+          * `publish_time` - publish_time
+          * `-publish_time` - -publish_time
+          * `lead_time_h` - lead_time_h
+          * `-lead_time_h` - -lead_time_h
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          maximum: 800
+          minimum: 1
+          default: 50
+      - in: query
+        name: policy
+        schema:
+          enum:
+          - daily_gate
+          - lead_time
+          type: string
+          minLength: 1
+        description: |-
+          Decision cutoff policy. Defaults to the server default (see /api/v1/meta).
+
+          * `daily_gate` - DAILY_GATE
+          * `lead_time` - LEAD_TIME
+      tags:
+      - analytics
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntervalPage'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invalid query parameters (RFC 9457).
+  /api/v1/meta:
+    get:
+      operationId: meta
+      summary: Evaluation window, policy defaults and bounds, coverage, ingestion
+        status
+      tags:
+      - analytics
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaResponse'
+          description: ''
+  /api/v1/summary:
+    get:
+      operationId: summary
+      summary: 'KPI block: MAE, RMSE, bias and the other accuracy metrics'
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: First UK delivery date (inclusive). Defaults to window start.
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Last UK delivery date (inclusive). Defaults to window end.
+      - in: query
+        name: gate_days_before
+        schema:
+          type: integer
+          minimum: 1
+        description: 'daily_gate only: days before the delivery date.'
+      - in: query
+        name: gate_time
+        schema:
+          type: string
+          format: time
+        description: 'daily_gate only: UK wall-clock time (HH:MM, Europe/London).'
+      - in: query
+        name: lead_time_h
+        schema:
+          type: integer
+          minimum: 0
+        description: 'lead_time only: required lead time in hours.'
+      - in: query
+        name: policy
+        schema:
+          enum:
+          - daily_gate
+          - lead_time
+          type: string
+          minLength: 1
+        description: |-
+          Decision cutoff policy. Defaults to the server default (see /api/v1/meta).
+
+          * `daily_gate` - DAILY_GATE
+          * `lead_time` - LEAD_TIME
+      tags:
+      - analytics
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryResponse'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invalid query parameters (RFC 9457).
+  /api/v1/timeseries:
+    get:
+      operationId: timeseries
+      summary: Selected hourly forecast and half-hourly actuals for the chart
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: First UK delivery date (inclusive). Defaults to window start.
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Last UK delivery date (inclusive). Defaults to window end.
+      - in: query
+        name: gate_days_before
+        schema:
+          type: integer
+          minimum: 1
+        description: 'daily_gate only: days before the delivery date.'
+      - in: query
+        name: gate_time
+        schema:
+          type: string
+          format: time
+        description: 'daily_gate only: UK wall-clock time (HH:MM, Europe/London).'
+      - in: query
+        name: lead_time_h
+        schema:
+          type: integer
+          minimum: 0
+        description: 'lead_time only: required lead time in hours.'
+      - in: query
+        name: policy
+        schema:
+          enum:
+          - daily_gate
+          - lead_time
+          type: string
+          minLength: 1
+        description: |-
+          Decision cutoff policy. Defaults to the server default (see /api/v1/meta).
+
+          * `daily_gate` - DAILY_GATE
+          * `lead_time` - LEAD_TIME
+      tags:
+      - analytics
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeseriesResponse'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invalid query parameters (RFC 9457).
+  /health:
+    get:
+      operationId: health_retrieve
+      description: 'Liveness: the process is up. Never touches the database.'
+      tags:
+      - ops
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
+  /ready:
+    get:
+      operationId: ready_retrieve
+      description: 'Readiness: the database is reachable and both datasets are present.'
+      tags:
+      - ops
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ready'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+components:
+  schemas:
+    ActualCoverage:
+      type: object
+      properties:
+        expected:
+          type: integer
+        present:
+          type: integer
+        missing:
+          type: integer
+      required:
+      - expected
+      - missing
+      - present
+    ActualPoint:
+      type: object
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        actual_mw:
+          type: integer
+          nullable: true
+        settlement_date:
+          type: string
+          format: date
+          nullable: true
+        settlement_period:
+          type: integer
+          nullable: true
+      required:
+      - actual_mw
+      - settlement_date
+      - settlement_period
+      - start_time
+    BreakdownGroup:
+      type: object
+      properties:
+        key:
+          type: string
+          description: UK date (YYYY-MM-DD) or hour of day (0-23).
+        metrics:
+          $ref: '#/components/schemas/MetricSummary'
+      required:
+      - key
+      - metrics
+    BreakdownResponse:
+      type: object
+      properties:
+        query:
+          $ref: '#/components/schemas/QueryEcho'
+        data_version:
+          type: integer
+        group_by:
+          $ref: '#/components/schemas/GroupByEnum'
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/BreakdownGroup'
+      required:
+      - data_version
+      - group_by
+      - groups
+      - query
+    Coverage:
+      type: object
+      properties:
+        forecast:
+          $ref: '#/components/schemas/ForecastCoverage'
+        actual:
+          $ref: '#/components/schemas/ActualCoverage'
+      required:
+      - actual
+      - forecast
+    DailyGateBounds:
+      type: object
+      properties:
+        gate_time_default:
+          type: string
+        gate_days_before_default:
+          type: integer
+        gate_days_before_min:
+          type: integer
+        gate_days_before_max:
+          type: integer
+      required:
+      - gate_days_before_default
+      - gate_days_before_max
+      - gate_days_before_min
+      - gate_time_default
+    DataSource:
+      type: object
+      properties:
+        dataset:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        description:
+          type: string
+      required:
+      - dataset
+      - description
+      - name
+      - url
+    EvaluationWindow:
+      type: object
+      properties:
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        timezone:
+          type: string
+      required:
+      - date_from
+      - date_to
+      - timezone
+    ForecastCoverage:
+      type: object
+      properties:
+        expected:
+          type: integer
+        present:
+          type: integer
+        missing:
+          type: integer
+        rows:
+          type: integer
+        distinct_publishes:
+          type: integer
+        versions_per_hour_min:
+          type: integer
+          nullable: true
+        versions_per_hour_max:
+          type: integer
+          nullable: true
+        versions_per_hour_mean:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - distinct_publishes
+      - expected
+      - missing
+      - present
+      - rows
+      - versions_per_hour_max
+      - versions_per_hour_mean
+      - versions_per_hour_min
+    ForecastPoint:
+      type: object
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        cutoff_time:
+          type: string
+          format: date-time
+        publish_time:
+          type: string
+          format: date-time
+          nullable: true
+        forecast_mw:
+          type: integer
+          nullable: true
+        lead_time_h:
+          type: number
+          format: double
+          nullable: true
+        actual_mw:
+          type: integer
+          nullable: true
+          description: 'Matched actual: the half-hour starting at start_time (D2).'
+        error_mw:
+          type: integer
+          nullable: true
+          description: forecast - actual.
+        status:
+          $ref: '#/components/schemas/IntervalStatusEnum'
+      required:
+      - actual_mw
+      - cutoff_time
+      - error_mw
+      - forecast_mw
+      - lead_time_h
+      - publish_time
+      - start_time
+      - status
+    GroupByEnum:
+      enum:
+      - day
+      - hour_of_day
+      type: string
+      description: |-
+        * `day` - DAY
+        * `hour_of_day` - HOUR_OF_DAY
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+      - status
+    HistoryQuery:
+      type: object
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        policy:
+          $ref: '#/components/schemas/PolicyEnum'
+        gate_time:
+          type: string
+          nullable: true
+        gate_days_before:
+          type: integer
+          nullable: true
+        lead_time_h:
+          type: integer
+          nullable: true
+      required:
+      - gate_days_before
+      - gate_time
+      - lead_time_h
+      - policy
+      - start_time
+    HistoryResponse:
+      type: object
+      properties:
+        query:
+          $ref: '#/components/schemas/HistoryQuery'
+        data_version:
+          type: integer
+        start_time:
+          type: string
+          format: date-time
+        cutoff_time:
+          type: string
+          format: date-time
+        actual_mw:
+          type: integer
+          nullable: true
+        selected_publish_time:
+          type: string
+          format: date-time
+          nullable: true
+        selected_forecast_mw:
+          type: integer
+          nullable: true
+        selected_error_mw:
+          type: integer
+          nullable: true
+        selected_lead_time_h:
+          type: number
+          format: double
+          nullable: true
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryVersion'
+      required:
+      - actual_mw
+      - cutoff_time
+      - data_version
+      - query
+      - selected_error_mw
+      - selected_forecast_mw
+      - selected_lead_time_h
+      - selected_publish_time
+      - start_time
+      - versions
+    HistoryVersion:
+      type: object
+      properties:
+        publish_time:
+          type: string
+          format: date-time
+        forecast_mw:
+          type: integer
+        lead_time_h:
+          type: number
+          format: double
+          description: start_time - publish_time; negative = late.
+        status:
+          $ref: '#/components/schemas/VersionStatusEnum'
+      required:
+      - forecast_mw
+      - lead_time_h
+      - publish_time
+      - status
+    IngestionInfo:
+      type: object
+      properties:
+        dataset:
+          type: string
+        source:
+          type: string
+        run_id:
+          type: integer
+        status:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        rows_received:
+          type: integer
+        rows_created:
+          type: integer
+        rows_rejected:
+          type: integer
+      required:
+      - dataset
+      - finished_at
+      - rows_created
+      - rows_received
+      - rows_rejected
+      - run_id
+      - source
+      - started_at
+      - status
+    Interval:
+      type: object
+      properties:
+        start_time:
+          type: string
+          format: date-time
+        forecast_mw:
+          type: integer
+          nullable: true
+        actual_mw:
+          type: integer
+          nullable: true
+        error_mw:
+          type: integer
+          nullable: true
+          description: forecast - actual.
+        abs_error_mw:
+          type: integer
+          nullable: true
+        publish_time:
+          type: string
+          format: date-time
+          nullable: true
+        lead_time_h:
+          type: number
+          format: double
+          nullable: true
+        cutoff_time:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/IntervalStatusEnum'
+      required:
+      - abs_error_mw
+      - actual_mw
+      - cutoff_time
+      - error_mw
+      - forecast_mw
+      - lead_time_h
+      - publish_time
+      - start_time
+      - status
+    IntervalPage:
+      type: object
+      properties:
+        query:
+          $ref: '#/components/schemas/QueryEcho'
+        data_version:
+          type: integer
+        ordering:
+          type: string
+        count:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        num_pages:
+          type: integer
+        next:
+          type: integer
+          nullable: true
+          description: Next page number.
+        previous:
+          type: integer
+          nullable: true
+          description: Previous page number.
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Interval'
+      required:
+      - count
+      - data_version
+      - next
+      - num_pages
+      - ordering
+      - page
+      - page_size
+      - previous
+      - query
+      - results
+    IntervalStatusEnum:
+      enum:
+      - matched
+      - missing_forecast
+      - missing_actual
+      - missing_both
+      type: string
+      description: |-
+        * `matched` - MATCHED
+        * `missing_forecast` - MISSING_FORECAST
+        * `missing_actual` - MISSING_ACTUAL
+        * `missing_both` - MISSING_BOTH
+    LeadTimeBounds:
+      type: object
+      properties:
+        lead_time_h_default:
+          type: integer
+        lead_time_h_min:
+          type: integer
+        lead_time_h_max:
+          type: integer
+      required:
+      - lead_time_h_default
+      - lead_time_h_max
+      - lead_time_h_min
+    LeadTimeCurveResponse:
+      type: object
+      properties:
+        query:
+          $ref: '#/components/schemas/LeadTimeQuery'
+        data_version:
+          type: integer
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeadTimePoint'
+      required:
+      - data_version
+      - points
+      - query
+    LeadTimePoint:
+      type: object
+      properties:
+        lead_time_h:
+          type: integer
+        metrics:
+          $ref: '#/components/schemas/MetricSummary'
+      required:
+      - lead_time_h
+      - metrics
+    LeadTimeQuery:
+      type: object
+      properties:
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        timezone:
+          type: string
+        min_h:
+          type: integer
+        max_h:
+          type: integer
+      required:
+      - date_from
+      - date_to
+      - max_h
+      - min_h
+      - timezone
+    Matching:
+      type: object
+      properties:
+        method:
+          type: string
+        description:
+          type: string
+      required:
+      - description
+      - method
+    MetaResponse:
+      type: object
+      properties:
+        data_version:
+          type: integer
+        evaluation_window:
+          $ref: '#/components/schemas/EvaluationWindow'
+        policies:
+          $ref: '#/components/schemas/Policies'
+        matching:
+          $ref: '#/components/schemas/Matching'
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        ingestion:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestionInfo'
+        timezone_note:
+          type: string
+        data_sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataSource'
+        limitations:
+          type: array
+          items:
+            type: string
+      required:
+      - coverage
+      - data_sources
+      - data_version
+      - evaluation_window
+      - ingestion
+      - limitations
+      - matching
+      - policies
+      - timezone_note
+    MetricSummary:
+      type: object
+      properties:
+        n_expected:
+          type: integer
+          description: Delivery hours in scope.
+        n_matched:
+          type: integer
+          description: Hours with both a forecast and an actual.
+        n_missing_forecast:
+          type: integer
+        n_missing_actual:
+          type: integer
+        coverage_pct:
+          type: number
+          format: double
+          nullable: true
+        mae_mw:
+          type: number
+          format: double
+          nullable: true
+        rmse_mw:
+          type: number
+          format: double
+          nullable: true
+        bias_mw:
+          type: number
+          format: double
+          nullable: true
+          description: mean(forecast - actual); positive = over-forecast.
+        median_abs_error_mw:
+          type: number
+          format: double
+          nullable: true
+        p90_abs_error_mw:
+          type: number
+          format: double
+          nullable: true
+        max_abs_error_mw:
+          type: number
+          format: double
+          nullable: true
+        mean_forecast_mw:
+          type: number
+          format: double
+          nullable: true
+        mean_actual_mw:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - bias_mw
+      - coverage_pct
+      - mae_mw
+      - max_abs_error_mw
+      - mean_actual_mw
+      - mean_forecast_mw
+      - median_abs_error_mw
+      - n_expected
+      - n_matched
+      - n_missing_actual
+      - n_missing_forecast
+      - p90_abs_error_mw
+      - rmse_mw
+    Policies:
+      type: object
+      properties:
+        default:
+          $ref: '#/components/schemas/PolicyEnum'
+        available:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyEnum'
+        daily_gate:
+          $ref: '#/components/schemas/DailyGateBounds'
+        lead_time:
+          $ref: '#/components/schemas/LeadTimeBounds'
+      required:
+      - available
+      - daily_gate
+      - default
+      - lead_time
+    PolicyEnum:
+      enum:
+      - daily_gate
+      - lead_time
+      type: string
+      description: |-
+        * `daily_gate` - DAILY_GATE
+        * `lead_time` - LEAD_TIME
+    Problem:
+      type: object
+      description: RFC 9457 problem details (application/problem+json).
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+        errors:
+          type: object
+          additionalProperties: {}
+          description: Field-level validation errors.
+      required:
+      - detail
+      - instance
+      - request_id
+      - status
+      - title
+      - type
+    QueryEcho:
+      type: object
+      properties:
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        timezone:
+          type: string
+          description: Zone of the delivery dates and gate time.
+        policy:
+          $ref: '#/components/schemas/PolicyEnum'
+        gate_time:
+          type: string
+          nullable: true
+          description: HH:MM Europe/London.
+        gate_days_before:
+          type: integer
+          nullable: true
+        lead_time_h:
+          type: integer
+          nullable: true
+      required:
+      - date_from
+      - date_to
+      - gate_days_before
+      - gate_time
+      - lead_time_h
+      - policy
+      - timezone
+    Ready:
+      type: object
+      properties:
+        status:
+          type: string
+        forecast_rows:
+          type: integer
+        actual_rows:
+          type: integer
+      required:
+      - actual_rows
+      - forecast_rows
+      - status
+    SummaryResponse:
+      type: object
+      properties:
+        query:
+          $ref: '#/components/schemas/QueryEcho'
+        data_version:
+          type: integer
+        matching_method:
+          type: string
+        metrics:
+          $ref: '#/components/schemas/MetricSummary'
+      required:
+      - data_version
+      - matching_method
+      - metrics
+      - query
+    TimeseriesResponse:
+      type: object
+      properties:
+        query:
+          $ref: '#/components/schemas/QueryEcho'
+        data_version:
+          type: integer
+        forecast:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForecastPoint'
+          description: Hourly selected forecast.
+        actual:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActualPoint'
+          description: Half-hourly actuals (null = missing).
+      required:
+      - actual
+      - data_version
+      - forecast
+      - query
+    VersionStatusEnum:
+      enum:
+      - selected
+      - superseded
+      - after_cutoff
+      - after_delivery_start
+      type: string
+      description: |-
+        * `selected` - SELECTED
+        * `superseded` - SUPERSEDED
+        * `after_cutoff` - AFTER_CUTOFF
+        * `after_delivery_start` - AFTER_DELIVERY_START
