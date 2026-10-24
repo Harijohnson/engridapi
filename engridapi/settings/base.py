@@ -7,8 +7,6 @@ which is how PythonAnywhere gets its config). See `.env.example` for the full li
 from datetime import date
 from pathlib import Path
 
-from django.contrib.gis import db
-
 import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -65,17 +63,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "engridapi.wsgi.application"
 
-# D4: SQLite everywhere (local, CI, PythonAnywhere). Switching engine is a DATABASE_URL change.
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql" ,
-        "HOST": "aws-0-ap-northeast-1.pooler.supabase.com",
-        "PORT": 6543,
-        "NAME": "postgres",
-        "USER": "postgres.trzrnaowdbfarxcajfpv",
-        "PASSWORD": env.str("DJANGO_DB_PASSWORD", default=""),
-    }
-}
+# D4: SQLite locally and in tests, PostgreSQL in production. The engine is a DATABASE_URL change.
+DATABASES = {"default": env.db("DATABASE_URL", default="sqlite:///db.sqlite3")}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LANGUAGE_CODE = "en-gb"
